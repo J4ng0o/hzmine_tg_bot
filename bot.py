@@ -53,6 +53,11 @@ def get_wiki():
         return {}
 
 
+def is_item(value):
+    """Предмет — это dict с ключами desc/craft (или image)."""
+    return isinstance(value, dict) and ("desc" in value or "craft" in value)
+
+
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
@@ -89,7 +94,7 @@ def callbacks(call):
         photo = os.path.join("images", "donate.png")
         text = "Приобрести HZMINE+ можно [тут](https://hzmine.millida.trade)"
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
-        
+
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='Markdown', reply_markup=markup)
@@ -105,7 +110,7 @@ def callbacks(call):
         bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown', reply_markup=markup)
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
-        
+
     # --- Подать заявку ---
     elif call.data == "apply":
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
@@ -120,12 +125,12 @@ def callbacks(call):
         if not data:
             bot.answer_callback_query(call.id, "Вики пуста или файл поврежден.")
             return
-            
+
         markup = types.InlineKeyboardMarkup(row_width=1)
         for i, pack in enumerate(data.keys()):
             markup.add(types.InlineKeyboardButton(pack, callback_data=f"wp_{i}"))
         markup.add(types.InlineKeyboardButton("Назад", callback_data="back"))
-        
+
         bot.send_message(call.message.chat.id, "Выбери датапак/плагин:", reply_markup=markup)
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
@@ -133,95 +138,123 @@ def callbacks(call):
     # --- Вики (выбор раздела/предмета внутри пакета) ---
     elif call.data.startswith("wp_"):
         data = get_wiki()
-        pack_idx = int(call.data.replace("wp_", ""))
-        pack_name = list(data.keys())[pack_idx]
-        section = data[pack_name]
-        
-        first_key = list(section.keys())[0] if section else None
-        is_sub = isinstance(section.get(first_key), dict) if first_key else False
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        
-        if is_sub:
-            for i, sub in enumerate(section.keys()):
-                markup.add(types.InlineKeyboardButton(sub, callback_data=f"ws_{pack_idx}_{i}"))
-            markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
-            text = f"{pack_name}\nВыбери раздел:"
-        else:
-            for i, item in enumerate(section.keys()):
-                markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{pack_idx}_{i}"))
-            markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
-            text = f"{pack_name}\nВыбери предмет:"
-            
-        bot.send_message(call.message.chat.id, text, reply_markup=markup)
-        safe_delete(call.message.chat.id, call.message.message_id)
+        try:
+            pack_idx = int(call.data.replace("wp_", ""))
+            pack_name = list(data.keys())[pack_idx]
+            section = data[pack_name]
+
+            first_key = list(section.keys())[0] if section else None
+            is_sub = bool(first_key) and not is_item(section[first_key])
+
+            markup = types.InlineKeyboardMarkup(row_width=1)
+
+            if is_sub:
+                for i, sub in enumerate(section.keys()):
+                    markup.add(types.InlineKeyboardButton(sub, callback_data=f"ws_{pack_idx}_{i}"))
+                markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
+                text = f"{pack_name}\nВыбери раздел:"
+            else:
+                for i, item in enumerate(section.keys()):
+                    markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{pack_idx}_{i}"))
+                markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
+                text = f"{pack_name}\nВыбери предмет:"
+
+            bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            safe_delete(call.message.chat.id, call.message.message_id)
+        except (IndexError, KeyError, ValueError) as e:
+            print(f"!!! ОШИБКА WP CALLBACK {call.data}: {repr(e)}")
+            bot.answer_callback_query(call.id, "Ошибка вики.")
+            return
+
         bot.answer_callback_query(call.id)
 
     # --- Вики (выбор предмета внутри подраздела) ---
     elif call.data.startswith("ws_"):
         data = get_wiki()
-        _, p_idx, s_idx = call.data.split("_")
-        p_idx, s_idx = int(p_idx), int(s_idx)
-        
-        pack_name = list(data.keys())[p_idx]
-        sub_name = list(data[pack_name].keys())[s_idx]
-        sub_section = data[pack_name][sub_name]
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for i, item in enumerate(sub_section.keys()):
-            markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{p_idx}_{s_idx}_{i}"))
-        markup.add(types.InlineKeyboardButton("Назад", callback_data=f"wp_{p_idx}"))
-        
-        text = f"{pack_name} | {sub_name}\nВыбери предмет:"
-        
-        bot.send_message(call.message.chat.id, text, reply_markup=markup)
-        safe_delete(call.message.chat.id, call.message.message_id)
+        try:
+            _, p_idx, s_idx = call.data.split("_")
+            p_idx, s_idx = int(p_idx), int(s_idx)
+
+            pack_name = list(data.keys())[p_idx]
+            sub_name = list(data[pack_name].keys())[s_idx]
+            sub_section = data[pack_name][sub_name]
+
+            # Если внутри не предметы — не показываем мусор
+            if not all(is_item(v) for v in sub_section.values()):
+                bot.answer_callback_query(call.id, "Ошибка структуры вики.")
+                return
+
+            markup = types.InlineKeyboardMarkup(row_width=1)
+            for i, item in enumerate(sub_section.keys()):
+                markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{p_idx}_{s_idx}_{i}"))
+            markup.add(types.InlineKeyboardButton("Назад", callback_data=f"wp_{p_idx}"))
+
+            text = f"{pack_name} | {sub_name}\nВыбери предмет:"
+
+            bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            safe_delete(call.message.chat.id, call.message.message_id)
+        except (IndexError, KeyError, ValueError) as e:
+            print(f"!!! ОШИБКА WS CALLBACK {call.data}: {repr(e)}")
+            bot.answer_callback_query(call.id, "Ошибка вики.")
+            return
+
         bot.answer_callback_query(call.id)
 
     # --- Вики (карточка предмета) ---
     elif call.data.startswith("wi_"):
         data = get_wiki()
-        parts = call.data.split("_")[1:]
-        
-        if len(parts) == 2:
-            p_idx, i_idx = int(parts[0]), int(parts[1])
-            s_idx = None
-        else:
-            p_idx, s_idx, i_idx = int(parts[0]), int(parts[1]), int(parts[2])
-            
-        pack_name = list(data.keys())[p_idx]
-        
-        if s_idx is not None:
-            sub_name = list(data[pack_name].keys())[s_idx]
-            item_name = list(data[pack_name][sub_name].keys())[i_idx]
-            item = data[pack_name][sub_name][item_name]
-            back = f"ws_{p_idx}_{s_idx}"
-            title = f"{pack_name} | {sub_name} | {item_name}"
-        else:
-            item_name = list(data[pack_name].keys())[i_idx]
-            item = data[pack_name][item_name]
-            back = f"wp_{p_idx}"
-            title = f"{pack_name} | {item_name}"
-            
-        text = f"{title}\n\nОписание:\n{item.get('desc', '-')}\n\nКрафт:\n{item.get('craft', '-')}"
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data=back))
-        
-        photo = os.path.join("images", item.get("image", ""))
-        if item.get("image") and os.path.exists(photo):
-            with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f, caption=text, reply_markup=markup)
+        try:
+            parts = call.data.split("_")[1:]
+
+            if len(parts) == 2:
+                p_idx, i_idx = int(parts[0]), int(parts[1])
+                s_idx = None
+            else:
+                p_idx, s_idx, i_idx = int(parts[0]), int(parts[1]), int(parts[2])
+
+            pack_name = list(data.keys())[p_idx]
+
+            if s_idx is not None:
+                sub_name = list(data[pack_name].keys())[s_idx]
+                item_name = list(data[pack_name][sub_name].keys())[i_idx]
+                item = data[pack_name][sub_name][item_name]
+                back = f"ws_{p_idx}_{s_idx}"
+                title = f"{pack_name} | {sub_name} | {item_name}"
+            else:
+                item_name = list(data[pack_name].keys())[i_idx]
+                item = data[pack_name][item_name]
+                back = f"wp_{p_idx}"
+                title = f"{pack_name} | {item_name}"
+
+            if not is_item(item):
+                bot.answer_callback_query(call.id, "Это не предмет.")
+                return
+
+            text = f"{title}\n\nОписание:\n{item.get('desc', '-')}\n\nКрафт:\n{item.get('craft', '-')}"
+            markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data=back))
+
+            image_name = item.get("image", "")
+            photo = os.path.join("images", image_name) if image_name else None
+
+            if photo and os.path.exists(photo):
+                with open(photo, 'rb') as f:
+                    bot.send_photo(call.message.chat.id, f, caption=text, reply_markup=markup)
+            else:
+                bot.send_message(call.message.chat.id, text, reply_markup=markup)
+
             safe_delete(call.message.chat.id, call.message.message_id)
-        else:
-            bot.send_message(call.message.chat.id, text, reply_markup=markup)
-            safe_delete(call.message.chat.id, call.message.message_id)
-            
-        bot.answer_callback_query(call.id)
+            bot.answer_callback_query(call.id)
+
+        except (IndexError, KeyError, ValueError) as e:
+            print(f"!!! ОШИБКА WI CALLBACK {call.data}: {repr(e)}")
+            bot.answer_callback_query(call.id, "Ошибка вики. Попробуй ещё раз.")
+            return
 
     # --- Назад в главное меню ---
     elif call.data == "back":
-        # Сбрасываем возможные ожидания ввода (например, если нажали "Назад" во время подачи заявки)
+        # Сбрасываем возможные ожидания ввода
         bot.clear_step_handler_by_chat_id(call.message.chat.id)
-        
+
         photo = os.path.join("images", "hello.png")
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
@@ -240,14 +273,14 @@ def process_application(message):
 
     user = message.from_user
     username = f"@{user.username}" if user.username else "нет username"
-    
+
     admin_text = (
         f"Новая заявка!\n\n"
         f"От: {user.first_name} ({username})\n"
         f"ID: {user.id}\n\n"
         f"Текст заявки:\n{message.text}"
     )
-    
+
     try:
         bot.send_message(ADMIN_ID, admin_text)
         bot.send_message(message.chat.id, "Заявка отправлена.")
