@@ -58,7 +58,7 @@ def get_main_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     btn_donate = types.InlineKeyboardButton("💎 HZMINE+", callback_data="donate", style="primary")
     btn_start_guide = types.InlineKeyboardButton("🚀 С чего начать?", callback_data="start_guide", style="primary")
-    btn_wiki = types.InlineKeyboardButton("📚 Вики", callback_data="open_wiki", style="primary")
+    btn_wiki = types.InlineKeyboardButton("📚 ТЕСТ", callback_data="open_wiki", style="primary")
     btn_apply = types.InlineKeyboardButton("📨 Подать заявку", callback_data="apply", style="primary")
     markup.add(btn_donate, btn_start_guide, btn_wiki, btn_apply)
     return markup
