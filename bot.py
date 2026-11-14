@@ -6,15 +6,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- НАСТРОЙКИ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# --- ТЕКСТЫ ---
 WELCOME_TEXT = (
-    "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить донат, "
-    "ознакомиться с самой важной информацией для игры на сервере, "
-    "подать заявку на вступление, а также заглянуть в нашу Вики по предметам!"
+    "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить HZMINE+,"
+    "ознакомиться с самой важной информацией для игры на сервере,"
+    "подать заявку на вступление, а так же узнать с чего начать!"
 )
 
 RULES_TEXT = (
@@ -43,6 +45,7 @@ APPLICATION_EXAMPLE = (
     "**Ответь на это сообщение (Reply) своим заполненным текстом**, и я перешлю его администрации."
 )
 
+# --- ФУНКЦИИ ---
 def load_wiki():
     try:
         with open('wiki.json', 'r', encoding='utf-8') as f:
@@ -58,9 +61,10 @@ def get_main_keyboard():
     markup.add(types.InlineKeyboardButton("Подать заявку", callback_data="apply"))
     return markup
 
+# --- ОБРАБОТЧИКИ ---
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    photo_path = os.path.join("images", "hello.png") 
+    photo_path = os.path.join("images", "welcome.png") 
 
     if os.path.exists(photo_path):
         with open(photo_path, 'rb') as photo:
@@ -77,17 +81,12 @@ def start_message(message):
 def callback_handler(call):
     if call.data == "donate":
         bot.answer_callback_query(call.id)
-        
         donate_photo_path = os.path.join("images", "donate.png")
-        donate_text = "Приобрести HZMINE+ можно по ссылке:\n    https://hzmine.millida.trade"
+        donate_text = "Приобрести HZMINE+ можно [тут](https://hzmine.millida.trade)"
 
         if os.path.exists(donate_photo_path):
             with open(donate_photo_path, 'rb') as photo:
-                bot.send_photo(
-                    chat_id=call.message.chat.id, 
-                    photo=photo, 
-                    caption=donate_text
-                )
+                bot.send_photo(chat_id=call.message.chat.id, photo=photo, caption=donate_text)
         else:
             bot.send_message(call.message.chat.id, donate_text)
 
@@ -109,7 +108,7 @@ def callback_handler(call):
             markup.add(types.InlineKeyboardButton(pack_name, callback_data=f"wpk_{i}"))
         
         markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back"))
-        bot.edit_message_text("📚 **Выбери раздел:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+        bot.edit_message_text("📚 **Выбери датапак/мод:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
     elif call.data.startswith("wpk_"):
         pack_idx = int(call.data.replace("wpk_", ""))
@@ -178,8 +177,9 @@ def forward_application(message):
         except Exception:
             bot.send_message(message.chat.id, "❌ Не удалось отправить заявку. Попробуй позже.")
     else:
-        bot.send_message(message.chat.id, "⚠️ Пожалуйста, ответь (Reply) именно на сообщение с примером заявки.")
+        bot.send_message(message.chat.id, "⚠️ Пожалуйста, ответь именно на сообщение с примером заявки.")
 
+# --- ЗАПУСК ---
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.infinity_polling()
