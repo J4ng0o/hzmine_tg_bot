@@ -84,26 +84,37 @@ def start_cmd(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callbacks(call):
+    # --- HZMINE+ ---
     if call.data == "donate":
         photo = os.path.join("images", "donate.png")
         text = "Приобрести HZMINE+ можно [тут](https://hzmine.millida.trade)"
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
+        
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='Markdown')
+                bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='Markdown', reply_markup=markup)
             safe_delete(call.message.chat.id, call.message.message_id)
         else:
-            bot.send_message(call.message.chat.id, text, parse_mode='Markdown')
+            bot.send_message(call.message.chat.id, text, parse_mode='Markdown', reply_markup=markup)
             safe_delete(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
 
+    # --- С чего начать ---
     elif call.data == "start_guide":
-        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown')
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
+        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown', reply_markup=markup)
         safe_delete(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
         
+    # --- Подать заявку ---
     elif call.data == "apply":
-        msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown')
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
+        msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown', reply_markup=markup)
         bot.register_next_step_handler(msg, process_application)
         safe_delete(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
 
+    # --- Вики (главное меню) ---
     elif call.data == "wiki":
         data = get_wiki()
         if not data:
@@ -119,6 +130,7 @@ def callbacks(call):
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
+    # --- Вики (выбор раздела/предмета внутри пакета) ---
     elif call.data.startswith("wp_"):
         data = get_wiki()
         pack_idx = int(call.data.replace("wp_", ""))
@@ -145,6 +157,7 @@ def callbacks(call):
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
+    # --- Вики (выбор предмета внутри подраздела) ---
     elif call.data.startswith("ws_"):
         data = get_wiki()
         _, p_idx, s_idx = call.data.split("_")
@@ -165,6 +178,7 @@ def callbacks(call):
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
+    # --- Вики (карточка предмета) ---
     elif call.data.startswith("wi_"):
         data = get_wiki()
         parts = call.data.split("_")[1:]
@@ -203,8 +217,12 @@ def callbacks(call):
             
         bot.answer_callback_query(call.id)
 
+    # --- Назад в главное меню ---
     elif call.data == "back":
-        photo = os.path.join("images", "hello.png") # Исправлено с welcome.png на hello.png
+        # Сбрасываем возможные ожидания ввода (например, если нажали "Назад" во время подачи заявки)
+        bot.clear_step_handler_by_chat_id(call.message.chat.id)
+        
+        photo = os.path.join("images", "hello.png")
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
