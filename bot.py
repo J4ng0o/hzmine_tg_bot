@@ -157,23 +157,31 @@ def callbacks(call):
     # --- HZMINE+ ---
     if call.data == "donate":
         photo = os.path.join("images", "donate.png")
-        text = "Приобрести HZMINE+ можно [тут](https://hzmine.millida.trade)"
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
+        text = (
+            "Помимо нашей поддержки вы получаете:\n\n"
+            "◦ **Команды:** /sit, /lay, /spin, /crawl, /hat, /piss — найди своё место в этом мире\n\n"
+            "◦ **Пин HZMINE+** — метка, которая выделит тебя среди других\n\n"
+            "◦ **Больше пинов за ивенты** — твой вклад в события заметят\n\n"
+            "Функционал будет пополняться со временем, но сохранять свою нейтральность и не давать преимущество.\n\n"
+            "Приобрести HZMINE+ можно [тут](https://hzmine.millida.trade)"
+        )
+        markup = types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("Назад", callback_data="back")
+        )
 
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='Markdown', reply_markup=markup)
+                bot.send_photo(
+                    call.message.chat.id, f, caption=text,
+                    parse_mode='Markdown', reply_markup=markup
+                )
             safe_delete(call.message.chat.id, call.message.message_id)
         else:
-            bot.send_message(call.message.chat.id, text, parse_mode='Markdown', reply_markup=markup)
+            bot.send_message(
+                call.message.chat.id, text,
+                parse_mode='Markdown', reply_markup=markup
+            )
             safe_delete(call.message.chat.id, call.message.message_id)
-        bot.answer_callback_query(call.id)
-
-    # --- С чего начать ---
-    elif call.data == "start_guide":
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
-        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown', reply_markup=markup)
-        safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     # --- Подать заявку ---
