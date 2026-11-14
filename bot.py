@@ -1,16 +1,20 @@
+import os
 import telebot
 from telebot import types
+from dotenv import load_dotenv
 
 BOT_TOKEN = "7412378342:AAHRXPec0CnkgdaAepRCUsmGOloBYsRZ51k"
 ADMIN_ID = 5393418168
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# Текст приветствия
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь ознакомиться со своим профилем, "
     "купить донат, а так же ознакомиться с самой важной информацией, необходимой для игры на сервере."
 )
 
+# Текст памятки
 RULES_TEXT = (
     "📜 **Краткая памятка для игроков**\n\n"
     "◦ 6.1. Обидели - подай иск в суд или урегулируй конфликт словами, не мсти сам.\n"
@@ -22,6 +26,7 @@ RULES_TEXT = (
     "🔗 [Группа сервера в Telegram](https://t.me/+t7H-lnggVsQyYjMy)"
 )
 
+# Текст примера заявки
 APPLICATION_EXAMPLE = (
     "📝 **Пример заявки:**\n\n"
     "1. Твой Minecraft ник:\n"
@@ -32,6 +37,7 @@ APPLICATION_EXAMPLE = (
     "👉 **Ответь на это сообщение (Reply) своим заполненным текстом**, и я перешлю его администрации."
 )
 
+# --- КЛАВИАТУРА (все кнопки primary) ---
 def get_main_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     btn_profile = types.InlineKeyboardButton("👤 Мой профиль", callback_data="profile", style="primary")
@@ -40,6 +46,8 @@ def get_main_keyboard():
     btn_apply = types.InlineKeyboardButton("📨 Подать заявку", callback_data="apply", style="primary")
     markup.add(btn_profile, btn_donate, btn_start_guide, btn_apply)
     return markup
+
+# --- ОБРАБОТЧИКИ ---
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
@@ -93,6 +101,10 @@ def forward_application(message):
     else:
         bot.send_message(message.chat.id, "⚠️ Пожалуйста, ответь (Reply) именно на сообщение с примером заявки, чтобы я мог её переслать.")
 
+# --- ЗАПУСК ---
 if __name__ == '__main__':
-    print("Бот запущен...")
-    bot.infinity_polling()
+    if not BOT_TOKEN:
+        print("ОШИБКА: Не найден BOT_TOKEN. Создайте файл .env или добавьте переменные окружения.")
+    else:
+        print("Бот запущен...")
+        bot.infinity_polling()
