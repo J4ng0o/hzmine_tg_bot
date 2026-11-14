@@ -55,17 +55,17 @@ def get_wiki():
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
-        types.InlineKeyboardButton("HZMINE+", callback_data="donate"),
+        types.InlineKeyboardButton("Подать заявку", callback_data="apply"),
         types.InlineKeyboardButton("С чего начать?", callback_data="start_guide"),
         types.InlineKeyboardButton("Вики", callback_data="wiki"),
-        types.InlineKeyboardButton("Подать заявку", callback_data="apply")
+        types.InlineKeyboardButton("HZMINE+", callback_data="donate")
     )
     return markup
 
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    photo = os.path.join("images", "welcome.png")
+    photo = os.path.join("images", "hello.png")
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
             bot.send_photo(message.chat.id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
