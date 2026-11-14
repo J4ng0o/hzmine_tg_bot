@@ -22,6 +22,9 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Множество chat_id, которые сейчас в процессе подачи заявки
 waiting_for_application = set()
 
+# Храним ID сообщений с новостным каналом, чтобы удалять их при переходе
+last_channel_msg = {}
+
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить HZMINE+, "
     "ознакомиться с самой важной информацией для игры на сервере, "
@@ -85,44 +88,46 @@ def main_menu():
 
 def safe_delete(chat_id, message_id):
     """Безопасное удаление сообщения, чтобы бот не падал, если оно старое."""
+    if not message_id:
+        return
     try:
         bot.delete_message(chat_id, message_id)
     except Exception:
         pass
 
 
-def send_main_menu(chat_id, delete_photo_id=None, delete_text_id=None):
-    """Отправляет картинку и текст отдельно, удаляет старые сообщения если они переданы."""
+def send_main_menu(chat_id, delete_msg_id=None):
+    """Отправляет приветствие (фото+текст+кнопки) и сообщение со ссылкой."""
     photo = os.path.join("images", "hello.png")
     
-    # 1. Отправляем картинку (без текста и кнопок)
+    # 1. Отправляем фото с текстом и кнопками (одним сообщением)
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
-            bot.send_photo(chat_id, f)
-            
-    # 2. Отправляем текст с меню
-    bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
+            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
+    else:
+        bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
+        
+    # 2. Отправляем второе сообщение с новостным каналом
+    msg = bot.send_message(chat_id, CHANNEL_TEXT, parse_mode='Markdown')
     
-    # 3. Отправляем третье сообщение со ссылкой
-    bot.send_message(chat_id, CHANNEL_TEXT, parse_mode='Markdown')
+    # Запоминаем ID этого сообщения, чтобы удалить его в будущем
+    last_channel_msg[chat_id] = msg.message_id
 
-    # 4. Удаляем старые сообщения
-    if delete_photo_id:
-        safe_delete(chat_id, delete_photo_id)
-    if delete_text_id:
-        safe_delete(chat_id, delete_text_id)
+    # 3. Удаляем сообщение, с которого был вызван переход
+    if delete_msg_id:
+        safe_delete(chat_id, delete_msg_id)
 
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    # Если пользователь в процессе заявки — /start отменяет её
     waiting_for_application.discard(message.chat.id)
+    # Удаляем старое сообщение с каналом, если оно было
+    safe_delete(message.chat.id, last_channel_msg.get(message.chat.id))
     send_main_menu(message.chat.id)
 
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_application, content_types=['text'])
 def process_application(message):
-    """Ловит текст заявки, пока пользователь в состоянии ожидания."""
     waiting_for_application.discard(message.chat.id)
 
     user = message.from_user
@@ -137,14 +142,10 @@ def process_application(message):
 
     if ADMIN_ID == 0:
         print("!!! ADMIN_ID = 0 — заявка не отправлена.")
-        bot.send_message(
-            message.chat.id,
-            "⚠️ Администратор не настроен. Сообщи об этом в чате сервера."
-        )
+        bot.send_message(message.chat.id, "⚠️ Администратор не настроен. Сообщи об этом в чате сервера.")
         return
 
     try:
-        # Без parse_mode, чтобы символы в тексте заявки не ломали разметку
         bot.send_message(ADMIN_ID, admin_text)
         bot.send_message(message.chat.id, "✅ Заявка отправлена администрации.")
     except Exception as e:
@@ -157,15 +158,14 @@ def process_application(message):
     content_types=['photo', 'video', 'sticker', 'voice', 'document', 'audio']
 )
 def process_application_wrong_type(message):
-    """Если в состоянии заявки пришло не текстовое сообщение — просим текст."""
-    bot.send_message(
-        message.chat.id,
-        "Пожалуйста, отправь заявку текстом. Или нажми «Отмена», чтобы вернуться в меню."
-    )
+    bot.send_message(message.chat.id, "Пожалуйста, отправь заявку текстом. Или нажми «Отмена», чтобы вернуться в меню.")
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def callbacks(call):
+    # Сначала удаляем сообщение с новостным каналом (если оно есть), чтобы не засорять чат
+    safe_delete(call.message.chat.id, last_channel_msg.get(call.message.chat.id))
+
     # --- HZMINE+ ---
     if call.data == "donate":
         photo = os.path.join("images", "donate.png")
@@ -177,19 +177,14 @@ def callbacks(call):
             "Функционал будет пополняться со временем, но сохранять свою нейтральность и не давать преимущество.\n\n"
             'Приобрести HZMINE+ можно <a href="https://hzmine.millida.trade">тут</a>'
         )
-        markup = types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("Назад", callback_data="back")
-        )
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
 
-        # Отправляем фото и текст отдельно
+        # Отправляем фото и текст одним сообщением (caption)
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f)
-        
-        bot.send_message(
-            call.message.chat.id, text,
-            parse_mode='HTML', reply_markup=markup
-        )
+                bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='HTML', reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, text, parse_mode='HTML', reply_markup=markup)
         
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
@@ -199,30 +194,28 @@ def callbacks(call):
         photo = os.path.join("images", "rules.png")
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
         
-        # Отправляем фото и текст отдельно
+        # Отправляем фото и текст одним сообщением
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f)
+                bot.send_photo(call.message.chat.id, f, caption=RULES_TEXT, parse_mode='HTML', reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='HTML', reply_markup=markup)
                 
-        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='HTML', reply_markup=markup)
-        
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     # --- Подать заявку ---
     elif call.data == "apply":
         photo = os.path.join("images", "apply.png")
-        markup = types.InlineKeyboardMarkup().add(
-            types.InlineKeyboardButton("Отмена", callback_data="back")
-        )
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Отмена", callback_data="back"))
         
-        # Отправляем фото и текст отдельно
+        # Отправляем фото и текст одним сообщением
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f)
+                bot.send_photo(call.message.chat.id, f, caption=APPLICATION_EXAMPLE, parse_mode='HTML', reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='HTML', reply_markup=markup)
                 
-        bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='HTML', reply_markup=markup)
-        
         waiting_for_application.add(call.message.chat.id)
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
@@ -361,16 +354,9 @@ def callbacks(call):
     elif call.data == "back":
         waiting_for_application.discard(call.message.chat.id)
         
-        # Вычисляем ID сообщений для удаления.
-        # Кнопка "Назад" находится на текстовом сообщении (call.message.message_id).
-        # Фотография всегда отправляется прямо перед ним (call.message.message_id - 1).
-        current_msg_id = call.message.message_id
-        
-        send_main_menu(
-            call.message.chat.id, 
-            delete_photo_id=current_msg_id - 1, 
-            delete_text_id=current_msg_id
-        )
+        # Вызываем главное меню. Передаем ID текущего сообщения, чтобы оно удалилось.
+        # Так как фото и текст теперь в ОДНОМ сообщении (caption), этого достаточно!
+        send_main_menu(call.message.chat.id, delete_msg_id=call.message.message_id)
         bot.answer_callback_query(call.id)
 
 
