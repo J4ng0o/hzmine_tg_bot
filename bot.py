@@ -145,17 +145,18 @@ def callback_handler(call):
                 
                 bot.answer_callback_query(call.id)
                 
-                # ЛОГИКА ОТПРАВКИ С КАРТИНКОЙ
-                if image_name:
+                # Проверяем, существует ли файл картинки физически
+                photo_path = os.path.join("images", image_name)
+                if image_name and os.path.exists(photo_path):
                     try:
-                        photo_path = os.path.join("images", image_name)
                         with open(photo_path, 'rb') as photo:
                             bot.send_photo(chat_id=call.message.chat.id, photo=photo, caption=text, reply_markup=markup, parse_mode='Markdown')
                         bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
                     except Exception as e:
                         print(f"Ошибка отправки фото: {e}")
-                        bot.edit_message_text(text + "\n\n*(Скриншот крафта не найден)*", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+                        bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
                 else:
+                    # Если картинки нет, просто отправляем текст
                     bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
         elif call.data == "wiki_back":
