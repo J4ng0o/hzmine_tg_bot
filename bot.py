@@ -6,13 +6,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# --- НАСТРОЙКИ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- ТЕКСТЫ ---
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить донат, "
     "ознакомиться с самой важной информацией для игры на сервере, "
@@ -45,7 +43,6 @@ APPLICATION_EXAMPLE = (
     "**Ответь на это сообщение (Reply) своим заполненным текстом**, и я перешлю его администрации."
 )
 
-# --- ФУНКЦИИ ---
 def load_wiki():
     try:
         with open('wiki.json', 'r', encoding='utf-8') as f:
@@ -80,7 +77,19 @@ def start_message(message):
 def callback_handler(call):
     if call.data == "donate":
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "Приобрести HZMINE+ можно по ссылке:\n    https://hzmine.millida.trade")
+        
+        donate_photo_path = os.path.join("images", "donate.png")
+        donate_text = "Приобрести HZMINE+ можно по ссылке:\n    https://hzmine.millida.trade"
+
+        if os.path.exists(donate_photo_path):
+            with open(donate_photo_path, 'rb') as photo:
+                bot.send_photo(
+                    chat_id=call.message.chat.id, 
+                    photo=photo, 
+                    caption=donate_text
+                )
+        else:
+            bot.send_message(call.message.chat.id, donate_text)
 
     elif call.data == "start_guide":
         bot.answer_callback_query(call.id)
@@ -171,7 +180,6 @@ def forward_application(message):
     else:
         bot.send_message(message.chat.id, "⚠️ Пожалуйста, ответь (Reply) именно на сообщение с примером заявки.")
 
-# --- ЗАПУСК ---
 if __name__ == '__main__':
     print("Бот запущен...")
     bot.infinity_polling()
