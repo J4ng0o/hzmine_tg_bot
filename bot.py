@@ -60,7 +60,7 @@ def get_main_keyboard():
 
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    photo_path = os.path.join("images", "welcome.png") 
+    photo_path = os.path.join("images", "hello.png") 
 
     if os.path.exists(photo_path):
         with open(photo_path, 'rb') as photo:
@@ -109,7 +109,7 @@ def callback_handler(call):
             markup.add(types.InlineKeyboardButton(pack_name, callback_data=f"wpk_{i}"))
         
         markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back"))
-        bot.edit_message_text("📚 **Выбери датапак/мод:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+        bot.edit_message_text("📚 **Выбери раздел:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
     elif call.data.startswith("wpk_"):
         pack_idx = int(call.data.replace("wpk_", ""))
