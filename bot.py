@@ -28,6 +28,9 @@ WELCOME_TEXT = (
     "подать заявку на вступление, а так же узнать с чего начать!"
 )
 
+# Текст второго сообщения
+CHANNEL_TEXT = "Так же у нас есть [новостной канал](https://t.me/hzminechannel), советую подписаться."
+
 RULES_TEXT = (
     "◦ **Как попасть на сервер?**\n\n"
     "Первым делом стоит подать заявку на вступление. Сделать это можно прямо здесь, в этом же боте.\n"
@@ -74,7 +77,6 @@ def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("Подать заявку", callback_data="apply"),
-        types.InlineKeyboardButton("С чего начать?", callback_data="start_guide"),
         types.InlineKeyboardButton("Вики", callback_data="wiki"),
         types.InlineKeyboardButton("HZMINE+", callback_data="donate")
     )
@@ -90,13 +92,20 @@ def safe_delete(chat_id, message_id):
 
 
 def send_main_menu(chat_id, delete_message_id=None):
-    """Отправляет главное меню (с картинкой, если есть) и опционально удаляет старое сообщение."""
+    """Отправляет главное меню (с картинкой, если есть) и второе сообщение со ссылкой."""
     photo = os.path.join("images", "hello.png")
+    
+    # 1. Отправляем приветствие с меню
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
             bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
     else:
         bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
+        
+    # 2. Отправляем второе сообщение с новостным каналом
+    bot.send_message(chat_id, CHANNEL_TEXT, parse_mode='Markdown')
+
+    # 3. Удаляем старое сообщение (если это вызов из кнопки "Назад")
     if delete_message_id:
         safe_delete(chat_id, delete_message_id)
 
