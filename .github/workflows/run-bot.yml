@@ -8,6 +8,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    # force update
     timeout-minutes: 350  # Ограничение времени работы (чуть меньше 6 часов)
 
     steps:
