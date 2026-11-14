@@ -179,7 +179,6 @@ def callbacks(call):
         )
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
 
-        # Отправляем фото и текст одним сообщением (caption)
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='HTML', reply_markup=markup)
@@ -194,7 +193,6 @@ def callbacks(call):
         photo = os.path.join("images", "rules.png")
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
         
-        # Отправляем фото и текст одним сообщением
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=RULES_TEXT, parse_mode='HTML', reply_markup=markup)
@@ -209,7 +207,6 @@ def callbacks(call):
         photo = os.path.join("images", "apply.png")
         markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Отмена", callback_data="back"))
         
-        # Отправляем фото и текст одним сообщением
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=APPLICATION_EXAMPLE, parse_mode='HTML', reply_markup=markup)
@@ -232,7 +229,14 @@ def callbacks(call):
             markup.add(types.InlineKeyboardButton(pack, callback_data=f"wp_{i}"))
         markup.add(types.InlineKeyboardButton("Назад", callback_data="back"))
 
-        bot.send_message(call.message.chat.id, "Выбери датапак/плагин:", reply_markup=markup)
+        # Добавляем картинку для вики
+        photo = os.path.join("images", "wiki.png")
+        if os.path.exists(photo):
+            with open(photo, 'rb') as f:
+                bot.send_photo(call.message.chat.id, f, caption="Выбери датапак/плагин:", reply_markup=markup)
+        else:
+            bot.send_message(call.message.chat.id, "Выбери датапак/плагин:", reply_markup=markup)
+            
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
@@ -353,9 +357,6 @@ def callbacks(call):
     # --- Назад в главное меню / Отмена заявки ---
     elif call.data == "back":
         waiting_for_application.discard(call.message.chat.id)
-        
-        # Вызываем главное меню. Передаем ID текущего сообщения, чтобы оно удалилось.
-        # Так как фото и текст теперь в ОДНОМ сообщении (caption), этого достаточно!
         send_main_menu(call.message.chat.id, delete_msg_id=call.message.message_id)
         bot.answer_callback_query(call.id)
 
