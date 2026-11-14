@@ -7,9 +7,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+ADMIN_ID_RAW = os.getenv("ADMIN_ID", "0")
+
+try:
+    ADMIN_ID = int(ADMIN_ID_RAW)
+except (TypeError, ValueError):
+    print(f"!!! ADMIN_ID некорректен: {ADMIN_ID_RAW!r}, использую 0")
+    ADMIN_ID = 0
+
+print(f"DEBUG: BOT_TOKEN set={bool(BOT_TOKEN)}, ADMIN_ID={ADMIN_ID}")
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# Множество chat_id, которые сейчас в процессе подачи заявки
+waiting_for_application = set()
 
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить HZMINE+, "
@@ -40,7 +51,8 @@ APPLICATION_EXAMPLE = (
     "2. Некоторые пожелания или цели игры на сервере:\n"
     "3. Опыт игры на подобных SMP серверах (если есть):\n"
     "4. Почему хочешь играть именно у нас?\n\n"
-    "**Ответь на это сообщение своим заполненным текстом**, и я перешлю его администрации."
+    "**Отправь следующим сообщением свой заполненный текст.**\n"
+    "Или нажми «Отмена», чтобы вернуться в меню."
 )
 
 
@@ -77,14 +89,67 @@ def safe_delete(chat_id, message_id):
         pass
 
 
-@bot.message_handler(commands=['start'])
-def start_cmd(message):
+def send_main_menu(chat_id, delete_message_id=None):
+    """Отправляет главное меню (с картинкой, если есть) и опционально удаляет старое сообщение."""
     photo = os.path.join("images", "hello.png")
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
-            bot.send_photo(message.chat.id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
+            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
     else:
-        bot.send_message(message.chat.id, WELCOME_TEXT, reply_markup=main_menu())
+        bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
+    if delete_message_id:
+        safe_delete(chat_id, delete_message_id)
+
+
+@bot.message_handler(commands=['start'])
+def start_cmd(message):
+    # Если пользователь в процессе заявки — /start отменяет её
+    waiting_for_application.discard(message.chat.id)
+    send_main_menu(message.chat.id)
+
+
+@bot.message_handler(func=lambda m: m.chat.id in waiting_for_application, content_types=['text'])
+def process_application(message):
+    """Ловит текст заявки, пока пользователь в состоянии ожидания."""
+    waiting_for_application.discard(message.chat.id)
+
+    user = message.from_user
+    username = f"@{user.username}" if user.username else "нет username"
+
+    admin_text = (
+        f"📩 Новая заявка!\n\n"
+        f"От: {user.first_name} ({username})\n"
+        f"ID: {user.id}\n\n"
+        f"Текст заявки:\n{message.text}"
+    )
+
+    if ADMIN_ID == 0:
+        print("!!! ADMIN_ID = 0 — заявка не отправлена.")
+        bot.send_message(
+            message.chat.id,
+            "⚠️ Администратор не настроен. Сообщи об этом в чате сервера."
+        )
+        return
+
+    try:
+        # Без parse_mode, чтобы символы в тексте заявки не ломали разметку
+        bot.send_message(ADMIN_ID, admin_text)
+        bot.send_message(message.chat.id, "✅ Заявка отправлена администрации.")
+    except Exception as e:
+        print(f"!!! ОШИБКА ОТПРАВКИ ЗАЯВКИ: {repr(e)}")
+        bot.send_message(message.chat.id, "Ошибка отправки. Попробуй позже.")
+
+
+@bot.message_handler(
+    func=lambda m: m.chat.id in waiting_for_application,
+    content_types=['photo', 'video', 'sticker', 'voice', 'document', 'audio']
+)
+def process_application_wrong_type(message):
+    """Если в состоянии заявки пришло не текстовое сообщение — просим текст."""
+    bot.send_message(
+        message.chat.id,
+        "Пожалуйста, отправь заявку текстом. Или нажми «Отмена», чтобы вернуться в меню."
+    )
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -113,9 +178,11 @@ def callbacks(call):
 
     # --- Подать заявку ---
     elif call.data == "apply":
-        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
-        msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown', reply_markup=markup)
-        bot.register_next_step_handler(msg, process_application)
+        markup = types.InlineKeyboardMarkup().add(
+            types.InlineKeyboardButton("Отмена", callback_data="back")
+        )
+        bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown', reply_markup=markup)
+        waiting_for_application.add(call.message.chat.id)
         safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
@@ -179,7 +246,6 @@ def callbacks(call):
             sub_name = list(data[pack_name].keys())[s_idx]
             sub_section = data[pack_name][sub_name]
 
-            # Если внутри не предметы — не показываем мусор
             if not all(is_item(v) for v in sub_section.values()):
                 bot.answer_callback_query(call.id, "Ошибка структуры вики.")
                 return
@@ -250,42 +316,12 @@ def callbacks(call):
             bot.answer_callback_query(call.id, "Ошибка вики. Попробуй ещё раз.")
             return
 
-    # --- Назад в главное меню ---
+    # --- Назад в главное меню / Отмена заявки ---
     elif call.data == "back":
-        # Сбрасываем возможные ожидания ввода
-        bot.clear_step_handler_by_chat_id(call.message.chat.id)
-
-        photo = os.path.join("images", "hello.png")
-        if os.path.exists(photo):
-            with open(photo, 'rb') as f:
-                bot.send_photo(call.message.chat.id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
-            safe_delete(call.message.chat.id, call.message.message_id)
-        else:
-            bot.send_message(call.message.chat.id, WELCOME_TEXT, reply_markup=main_menu())
-            safe_delete(call.message.chat.id, call.message.message_id)
+        # Отменяем ожидание заявки, если оно было
+        waiting_for_application.discard(call.message.chat.id)
+        send_main_menu(call.message.chat.id, delete_message_id=call.message.message_id)
         bot.answer_callback_query(call.id)
-
-
-def process_application(message):
-    if not message.reply_to_message:
-        bot.send_message(message.chat.id, "Ответь на сообщение с примером заявки.")
-        return
-
-    user = message.from_user
-    username = f"@{user.username}" if user.username else "нет username"
-
-    admin_text = (
-        f"Новая заявка!\n\n"
-        f"От: {user.first_name} ({username})\n"
-        f"ID: {user.id}\n\n"
-        f"Текст заявки:\n{message.text}"
-    )
-
-    try:
-        bot.send_message(ADMIN_ID, admin_text)
-        bot.send_message(message.chat.id, "Заявка отправлена.")
-    except Exception:
-        bot.send_message(message.chat.id, "Ошибка отправки. Попробуй позже.")
 
 
 if __name__ == '__main__':
