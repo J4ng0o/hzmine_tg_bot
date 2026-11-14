@@ -48,7 +48,8 @@ def get_wiki():
     try:
         with open('wiki.json', 'r', encoding='utf-8') as f:
             return json.load(f)
-    except Exception:
+    except Exception as e:
+        print(f"!!! ОШИБКА ЧТЕНИЯ WIKI.JSON: {repr(e)}")
         return {}
 
 
@@ -61,6 +62,14 @@ def main_menu():
         types.InlineKeyboardButton("HZMINE+", callback_data="donate")
     )
     return markup
+
+
+def safe_delete(chat_id, message_id):
+    """Безопасное удаление сообщения, чтобы бот не падал, если оно старое."""
+    try:
+        bot.delete_message(chat_id, message_id)
+    except Exception:
+        pass
 
 
 @bot.message_handler(commands=['start'])
@@ -81,20 +90,24 @@ def callbacks(call):
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=text, parse_mode='Markdown')
+            safe_delete(call.message.chat.id, call.message.message_id)
         else:
             bot.send_message(call.message.chat.id, text, parse_mode='Markdown')
+            safe_delete(call.message.chat.id, call.message.message_id)
 
     elif call.data == "start_guide":
         bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown')
+        safe_delete(call.message.chat.id, call.message.message_id)
         
     elif call.data == "apply":
         msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown')
         bot.register_next_step_handler(msg, process_application)
+        safe_delete(call.message.chat.id, call.message.message_id)
 
     elif call.data == "wiki":
         data = get_wiki()
         if not data:
-            bot.answer_callback_query(call.id, "Вики пуста.")
+            bot.answer_callback_query(call.id, "Вики пуста или файл поврежден.")
             return
             
         markup = types.InlineKeyboardMarkup(row_width=1)
@@ -102,7 +115,9 @@ def callbacks(call):
             markup.add(types.InlineKeyboardButton(pack, callback_data=f"wp_{i}"))
         markup.add(types.InlineKeyboardButton("Назад", callback_data="back"))
         
-        bot.edit_message_text("Выбери датапак/плагин:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        bot.send_message(call.message.chat.id, "Выбери датапак/плагин:", reply_markup=markup)
+        safe_delete(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
 
     elif call.data.startswith("wp_"):
         data = get_wiki()
@@ -119,13 +134,15 @@ def callbacks(call):
             for i, sub in enumerate(section.keys()):
                 markup.add(types.InlineKeyboardButton(sub, callback_data=f"ws_{pack_idx}_{i}"))
             markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
-            bot.edit_message_text(f"{pack_name}\nВыбери раздел:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+            text = f"{pack_name}\nВыбери раздел:"
         else:
             for i, item in enumerate(section.keys()):
                 markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{pack_idx}_{i}"))
             markup.add(types.InlineKeyboardButton("Назад", callback_data="wiki"))
-            bot.edit_message_text(f"{pack_name}\nВыбери предмет:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+            text = f"{pack_name}\nВыбери предмет:"
             
+        bot.send_message(call.message.chat.id, text, reply_markup=markup)
+        safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     elif call.data.startswith("ws_"):
@@ -142,7 +159,10 @@ def callbacks(call):
             markup.add(types.InlineKeyboardButton(item, callback_data=f"wi_{p_idx}_{s_idx}_{i}"))
         markup.add(types.InlineKeyboardButton("Назад", callback_data=f"wp_{p_idx}"))
         
-        bot.edit_message_text(f"{pack_name} | {sub_name}\nВыбери предмет:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        text = f"{pack_name} | {sub_name}\nВыбери предмет:"
+        
+        bot.send_message(call.message.chat.id, text, reply_markup=markup)
+        safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     elif call.data.startswith("wi_"):
@@ -176,20 +196,22 @@ def callbacks(call):
         if item.get("image") and os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=text, reply_markup=markup)
-            bot.delete_message(call.message.chat.id, call.message.message_id)
+            safe_delete(call.message.chat.id, call.message.message_id)
         else:
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+            bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            safe_delete(call.message.chat.id, call.message.message_id)
             
         bot.answer_callback_query(call.id)
 
     elif call.data == "back":
-        photo = os.path.join("images", "welcome.png")
+        photo = os.path.join("images", "hello.png") # Исправлено с welcome.png на hello.png
         if os.path.exists(photo):
             with open(photo, 'rb') as f:
                 bot.send_photo(call.message.chat.id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
-            bot.delete_message(call.message.chat.id, call.message.message_id)
+            safe_delete(call.message.chat.id, call.message.message_id)
         else:
-            bot.edit_message_text(WELCOME_TEXT, call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+            bot.send_message(call.message.chat.id, WELCOME_TEXT, reply_markup=main_menu())
+            safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
 
