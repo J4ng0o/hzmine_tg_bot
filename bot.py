@@ -22,21 +22,19 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # Множество chat_id, которые сейчас в процессе подачи заявки
 waiting_for_application = set()
 
-# Перевели на HTML-разметку для надежности
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить HZMINE+, "
     "ознакомиться с самой важной информацией для игры на сервере, "
-    "подать заявку на вступление, а так же узнать с чего начать!\n\n"
-    'Так же у нас есть собственный <a href="https://t.me/hzminechannel">новостной канал</a>, советую подписаться.'
+    "подать заявку на вступление, а так же узнать с чего начать!"
 )
 
 RULES_TEXT = (
-    "◦ <b>Как попасть на сервер?</b>\n\n"
+    "◦ **Как попасть на сервер?**\n\n"
     "Первым делом стоит подать заявку на вступление. Сделать это можно прямо здесь, в этом же боте.\n"
     "После отправки заявки дождитесь её рассмотрения. С вами свяжутся, либо сразу добавят в конфу сервера.\n"
     "Как только вы окажетесь в беседе, обязательно ознакомьтесь с правилами. При желании можно установить моды. "
     "Всю необходимую информацию - версию и IP сервера - вы найдете в канале «Важная инфа».\n\n"
-    "◦ <b>Что делать дальше?</b>\n\n"
+    "◦ **Что делать дальше?**\n\n"
     "Начинать на любом SMP-сервере стоит не с гонки за ресурсами, а с адаптации к сообществу. "
     "Мир уже обжит другими игроками, поэтому ваша главная задача в первые часы - не потеряться, "
     "не нарушить чужие границы и понять, как здесь всё устроено.\n"
@@ -96,12 +94,12 @@ def send_main_menu(chat_id, delete_message_id=None):
     photo = os.path.join("images", "hello.png")
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
-            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, parse_mode='HTML', reply_markup=main_menu())
+            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
     else:
-        bot.send_message(chat_id, WELCOME_TEXT, parse_mode='HTML', reply_markup=main_menu())
-    
+        bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
     if delete_message_id:
         safe_delete(chat_id, delete_message_id)
+
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
