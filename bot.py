@@ -31,13 +31,14 @@ WELCOME_TEXT = (
 # Текст второго сообщения
 CHANNEL_TEXT = "Так же у нас есть [новостной канал](https://t.me/hzminechannel), советую подписаться."
 
+# Текст правил переведен на HTML, чтобы не было ошибок парсинга
 RULES_TEXT = (
-    "◦ **Как попасть на сервер?**\n\n"
+    "◦ <b>Как попасть на сервер?</b>\n\n"
     "Первым делом стоит подать заявку на вступление. Сделать это можно прямо здесь, в этом же боте.\n"
     "После отправки заявки дождитесь её рассмотрения. С вами свяжутся, либо сразу добавят в конфу сервера.\n"
     "Как только вы окажетесь в беседе, обязательно ознакомьтесь с правилами. При желании можно установить моды. "
     "Всю необходимую информацию - версию и IP сервера - вы найдете в канале «Важная инфа».\n\n"
-    "◦ **Что делать дальше?**\n\n"
+    "◦ <b>Что делать дальше?</b>\n\n"
     "Начинать на любом SMP-сервере стоит не с гонки за ресурсами, а с адаптации к сообществу. "
     "Мир уже обжит другими игроками, поэтому ваша главная задача в первые часы - не потеряться, "
     "не нарушить чужие границы и понять, как здесь всё устроено.\n"
@@ -77,6 +78,7 @@ def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
     markup.add(
         types.InlineKeyboardButton("Подать заявку", callback_data="apply"),
+        types.InlineKeyboardButton("С чего начать?", callback_data="start_guide"),
         types.InlineKeyboardButton("Вики", callback_data="wiki"),
         types.InlineKeyboardButton("HZMINE+", callback_data="donate")
     )
@@ -92,7 +94,7 @@ def safe_delete(chat_id, message_id):
 
 
 def send_main_menu(chat_id, delete_message_id=None):
-    """Отправляет главное меню (с картинкой, если есть) и второе сообщение со ссылкой."""
+    """Отправляет главное меню и второе сообщение со ссылкой."""
     photo = os.path.join("images", "hello.png")
     
     # 1. Отправляем приветствие с меню
@@ -191,6 +193,14 @@ def callbacks(call):
                 parse_mode='Markdown', reply_markup=markup
             )
             safe_delete(call.message.chat.id, call.message.message_id)
+        bot.answer_callback_query(call.id)
+
+    # --- С чего начать (ВОЗВРАЩЕНО) ---
+    elif call.data == "start_guide":
+        markup = types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("Назад", callback_data="back"))
+        # Используем HTML, чтобы не ломался текст
+        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='HTML', reply_markup=markup)
+        safe_delete(call.message.chat.id, call.message.message_id)
         bot.answer_callback_query(call.id)
 
     # --- Подать заявку ---
