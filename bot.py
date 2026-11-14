@@ -102,7 +102,7 @@ def callbacks(call):
             markup.add(types.InlineKeyboardButton(pack, callback_data=f"wp_{i}"))
         markup.add(types.InlineKeyboardButton("Назад", callback_data="back"))
         
-        bot.edit_message_text("Выбери датапак/мод:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+        bot.edit_message_text("Выбери датапак/плагин:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
     elif call.data.startswith("wp_"):
         data = get_wiki()
