@@ -96,12 +96,12 @@ def send_main_menu(chat_id, delete_message_id=None):
     photo = os.path.join("images", "hello.png")
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
-            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
+            bot.send_photo(chat_id, f, caption=WELCOME_TEXT, parse_mode='HTML', reply_markup=main_menu())
     else:
-        bot.send_message(chat_id, WELCOME_TEXT, reply_markup=main_menu())
+        bot.send_message(chat_id, WELCOME_TEXT, parse_mode='HTML', reply_markup=main_menu())
+    
     if delete_message_id:
         safe_delete(chat_id, delete_message_id)
-
 
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
