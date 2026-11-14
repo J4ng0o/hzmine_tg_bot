@@ -60,7 +60,8 @@ def get_main_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
     btn_donate = types.InlineKeyboardButton("💎 HZMINE+", callback_data="donate", style="primary")
     btn_start_guide = types.InlineKeyboardButton("🚀 С чего начать?", callback_data="start_guide", style="primary")
-    btn_wiki = types.InlineKeyboardButton("📚 Вики", callback_data="wiki_main", style="primary")
+    # Обрати внимание: здесь теперь callback_data="open_wiki"
+    btn_wiki = types.InlineKeyboardButton("📚 Вики", callback_data="open_wiki", style="primary")
     btn_apply = types.InlineKeyboardButton("📨 Подать заявку", callback_data="apply", style="primary")
     markup.add(btn_donate, btn_start_guide, btn_wiki, btn_apply)
     return markup
@@ -88,7 +89,7 @@ def callback_handler(call):
             bot.register_next_step_handler(msg, forward_application)
 
         # --- ЛОГИКА ВИКИ ---
-        elif call.data == "wiki_main":
+        elif call.data == "open_wiki":
             wiki_data = load_wiki()
             if not wiki_data:
                 bot.answer_callback_query(call.id, "Вики пока пуста или файл wiki.json не найден.", show_alert=True)
@@ -96,7 +97,6 @@ def callback_handler(call):
             
             markup = types.InlineKeyboardMarkup(row_width=1)
             for pack_name in wiki_data.keys():
-                # Кодируем название для callback_data
                 btn = types.InlineKeyboardButton(pack_name, callback_data=f"wiki_pack_{pack_name}", style="primary")
                 markup.add(btn)
             
@@ -116,7 +116,7 @@ def callback_handler(call):
                     btn = types.InlineKeyboardButton(item_name, callback_data=f"wiki_item_{pack_name}|{item_name}", style="primary")
                     markup.add(btn)
                 
-                btn_back = types.InlineKeyboardButton("⬅️ К разделам", callback_data="wiki_main", style="primary")
+                btn_back = types.InlineKeyboardButton("⬅️ К разделам", callback_data="open_wiki", style="primary")
                 markup.add(btn_back)
                 
                 bot.answer_callback_query(call.id)
@@ -145,7 +145,6 @@ def callback_handler(call):
                 
                 bot.answer_callback_query(call.id)
                 
-                # Проверяем, существует ли файл картинки физически
                 photo_path = os.path.join("images", image_name)
                 if image_name and os.path.exists(photo_path):
                     try:
@@ -156,7 +155,6 @@ def callback_handler(call):
                         print(f"Ошибка отправки фото: {e}")
                         bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
                 else:
-                    # Если картинки нет, просто отправляем текст
                     bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
         elif call.data == "wiki_back":
@@ -164,7 +162,6 @@ def callback_handler(call):
             bot.edit_message_text(WELCOME_TEXT, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
     except telebot.apihelper.ApiTelegramException as e:
-        # Игнорируем ошибку "Message is not modified", если пользователь спамит кнопки
         if "message is not modified" in str(e).lower():
             pass
         else:
