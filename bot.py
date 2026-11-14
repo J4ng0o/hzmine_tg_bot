@@ -13,14 +13,14 @@ ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Текст приветствия (обновил под новые реалии)
+# Текст приветствия
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить донат, "
     "ознакомиться с самой важной информацией для игры на сервере, "
     "подать заявку на вступление, а также заглянуть в нашу Вики по предметам!"
 )
 
-# Текст памятки (без изменений)
+# Текст памятки
 RULES_TEXT = (
     "📜 **Краткая памятка для игроков**\n\n"
     "◦ 6.1. Обидели - подай иск в суд или урегулируй конфликт словами, не мсти сам.\n"
@@ -32,7 +32,7 @@ RULES_TEXT = (
     "🔗 [Группа сервера в Telegram](https://t.me/+t7H-lnggVsQyYjMy)"
 )
 
-# Текст примера заявки (без изменений)
+# Текст примера заявки
 APPLICATION_EXAMPLE = (
     "📝 **Пример заявки:**\n\n"
     "1. Твой Minecraft ник:\n"
@@ -49,6 +49,10 @@ def load_wiki():
         with open('wiki.json', 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
+        print("ОШИБКА: Файл wiki.json не найден!")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"ОШИБКА: Синтаксическая ошибка в wiki.json: {e}")
         return {}
 
 # --- КЛАВИАТУРА ---
@@ -69,81 +73,101 @@ def start_message(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
-    if call.data == "donate":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "💎 Приобрести донат можно по ссылке:\nhttps://hzmine.millida.trade")
+    try:
+        if call.data == "donate":
+            bot.answer_callback_query(call.id)
+            bot.send_message(call.message.chat.id, "💎 Приобрести донат можно по ссылке:\nhttps://hzmine.millida.trade")
 
-    elif call.data == "start_guide":
-        bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown', disable_web_page_preview=False)
+        elif call.data == "start_guide":
+            bot.answer_callback_query(call.id)
+            bot.send_message(call.message.chat.id, RULES_TEXT, parse_mode='Markdown', disable_web_page_preview=False)
 
-    elif call.data == "apply":
-        bot.answer_callback_query(call.id)
-        msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown')
-        bot.register_next_step_handler(msg, forward_application)
+        elif call.data == "apply":
+            bot.answer_callback_query(call.id)
+            msg = bot.send_message(call.message.chat.id, APPLICATION_EXAMPLE, parse_mode='Markdown')
+            bot.register_next_step_handler(msg, forward_application)
 
-    # --- ЛОГИКА ВИКИ ---
-    elif call.data == "wiki_main":
-        wiki_data = load_wiki()
-        if not wiki_data:
-            bot.answer_callback_query(call.id, "Вики пока пуста или файл wiki.json не найден.", show_alert=True)
-            return
-        
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for pack_name in wiki_data.keys():
-            # Кодируем название для callback_data, чтобы не было проблем с пробелами
-            btn = types.InlineKeyboardButton(pack_name, callback_data=f"wiki_pack_{pack_name}", style="primary")
-            markup.add(btn)
-        
-        btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back", style="primary")
-        markup.add(btn_back)
-        
-        bot.answer_callback_query(call.id)
-        bot.edit_message_text("📚 **Выбери датапак/мод:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
-
-    elif call.data.startswith("wiki_pack_"):
-        pack_name = call.data.replace("wiki_pack_", "")
-        wiki_data = load_wiki()
-        
-        if pack_name in wiki_data:
+        # --- ЛОГИКА ВИКИ ---
+        elif call.data == "wiki_main":
+            wiki_data = load_wiki()
+            if not wiki_data:
+                bot.answer_callback_query(call.id, "Вики пока пуста или файл wiki.json не найден.", show_alert=True)
+                return
+            
             markup = types.InlineKeyboardMarkup(row_width=1)
-            for item_name in wiki_data[pack_name].keys():
-                btn = types.InlineKeyboardButton(item_name, callback_data=f"wiki_item_{pack_name}|{item_name}", style="primary")
+            for pack_name in wiki_data.keys():
+                # Кодируем название для callback_data
+                btn = types.InlineKeyboardButton(pack_name, callback_data=f"wiki_pack_{pack_name}", style="primary")
                 markup.add(btn)
             
-            btn_back = types.InlineKeyboardButton("⬅️ К разделам", callback_data="wiki_main", style="primary")
+            btn_back = types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back", style="primary")
             markup.add(btn_back)
             
             bot.answer_callback_query(call.id)
-            bot.edit_message_text(f"📦 **Раздел: {pack_name}**\nВыбери предмет:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+            bot.edit_message_text("📚 **Выбери датапак/мод:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
-    elif call.data.startswith("wiki_item_"):
-        data = call.data.replace("wiki_item_", "")
-        pack_name, item_name = data.split("|", 1)
-        
-        wiki_data = load_wiki()
-        if pack_name in wiki_data and item_name in wiki_data[pack_name]:
-            item_info = wiki_data[pack_name][item_name]
-            desc = item_info.get("desc", "Нет описания.")
-            craft = item_info.get("craft", "Нет информации о крафте.")
+        elif call.data.startswith("wiki_pack_"):
+            pack_name = call.data.replace("wiki_pack_", "")
+            wiki_data = load_wiki()
             
-            text = (
-                f"📦 **{pack_name}** | 🛠 **{item_name}**\n\n"
-                f"📝 **Описание:**\n{desc}\n\n"
-                f"⚒ **Как получить/крафт:**\n{craft}"
-            )
+            if pack_name in wiki_data:
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                for item_name in wiki_data[pack_name].keys():
+                    btn = types.InlineKeyboardButton(item_name, callback_data=f"wiki_item_{pack_name}|{item_name}", style="primary")
+                    markup.add(btn)
+                
+                btn_back = types.InlineKeyboardButton("⬅️ К разделам", callback_data="wiki_main", style="primary")
+                markup.add(btn_back)
+                
+                bot.answer_callback_query(call.id)
+                bot.edit_message_text(f"📦 **Раздел: {pack_name}**\nВыбери предмет:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+        elif call.data.startswith("wiki_item_"):
+            data = call.data.replace("wiki_item_", "")
+            pack_name, item_name = data.split("|", 1)
             
-            markup = types.InlineKeyboardMarkup(row_width=1)
-            btn_back = types.InlineKeyboardButton("⬅️ Назад к предметам", callback_data=f"wiki_pack_{pack_name}", style="primary")
-            markup.add(btn_back)
-            
+            wiki_data = load_wiki()
+            if pack_name in wiki_data and item_name in wiki_data[pack_name]:
+                item_info = wiki_data[pack_name][item_name]
+                desc = item_info.get("desc", "Нет описания.")
+                craft = item_info.get("craft", "Нет информации о крафте.")
+                image_name = item_info.get("image", "")
+                
+                text = (
+                    f"📦 **{pack_name}** | 🛠 **{item_name}**\n\n"
+                    f"📝 **Описание:**\n{desc}\n\n"
+                    f"⚒ **Как получить/крафт:**\n{craft}"
+                )
+                
+                markup = types.InlineKeyboardMarkup(row_width=1)
+                btn_back = types.InlineKeyboardButton("⬅️ Назад к предметам", callback_data=f"wiki_pack_{pack_name}", style="primary")
+                markup.add(btn_back)
+                
+                bot.answer_callback_query(call.id)
+                
+                # ЛОГИКА ОТПРАВКИ С КАРТИНКОЙ
+                if image_name:
+                    try:
+                        photo_path = os.path.join("images", image_name)
+                        with open(photo_path, 'rb') as photo:
+                            bot.send_photo(chat_id=call.message.chat.id, photo=photo, caption=text, reply_markup=markup, parse_mode='Markdown')
+                        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+                    except Exception as e:
+                        print(f"Ошибка отправки фото: {e}")
+                        bot.edit_message_text(text + "\n\n*(Скриншот крафта не найден)*", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+                else:
+                    bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+
+        elif call.data == "wiki_back":
             bot.answer_callback_query(call.id)
-            bot.edit_message_text(text, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
+            bot.edit_message_text(WELCOME_TEXT, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
-    elif call.data == "wiki_back":
-        bot.answer_callback_query(call.id)
-        bot.edit_message_text(WELCOME_TEXT, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=get_main_keyboard(), parse_mode='Markdown')
-
+    except telebot.apihelper.ApiTelegramException as e:
+        # Игнорируем ошибку "Message is not modified", если пользователь спамит кнопки
+        if "message is not modified" in str(e).lower():
+            pass
+        else:
+            print(f"Ошибка Telegram API: {e}")
 
 def forward_application(message):
     if message.reply_to_message:
@@ -169,7 +193,7 @@ def forward_application(message):
 # --- ЗАПУСК ---
 if __name__ == '__main__':
     if not BOT_TOKEN:
-        print("ОШИБКА: Не найден BOT_TOKEN.")
+        print("ОШИБКА: Не найден BOT_TOKEN. Создайте файл .env или добавьте переменные окружения.")
     else:
         print("Бот запущен...")
         bot.infinity_polling()
