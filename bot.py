@@ -61,16 +61,11 @@ def get_main_keyboard():
     markup.add(types.InlineKeyboardButton("Подать заявку", callback_data="apply"))
     return markup
 
-# --- ОБРАБОТЧИКИ ---
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    # Путь к картинке для приветствия
-    photo_path = os.path.join("images", "welcome.jpg") 
-    
-    # Если хочешь использовать .png, поменяй на "welcome.png" выше ^
+    photo_path = os.path.join("images", "welcome.png") 
 
     if os.path.exists(photo_path):
-        # Если картинка есть, отправляем её с текстом (подписью)
         with open(photo_path, 'rb') as photo:
             bot.send_photo(
                 chat_id=message.chat.id, 
@@ -79,14 +74,13 @@ def start_message(message):
                 reply_markup=get_main_keyboard()
             )
     else:
-        # Если картинки нет, отправляем просто текст
         bot.send_message(message.chat.id, WELCOME_TEXT, reply_markup=get_main_keyboard())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     if call.data == "donate":
         bot.answer_callback_query(call.id)
-        bot.send_message(call.message.chat.id, "💎 Приобрести донат можно по ссылке:\nhttps://hzmine.millida.trade")
+        bot.send_message(call.message.chat.id, "Приобрести HZMINE+ можно по ссылке:\n    https://hzmine.millida.trade")
 
     elif call.data == "start_guide":
         bot.answer_callback_query(call.id)
@@ -161,9 +155,6 @@ def callback_handler(call):
 
     elif call.data == "wiki_back":
         bot.answer_callback_query(call.id)
-        # Тут мы возвращаемся в главное меню. Так как мы пришли из edit_message_text, 
-        # картинку вернуть не получится (Telegram не позволяет менять текст на фото), 
-        # поэтому вернется просто текст.
         bot.edit_message_text(WELCOME_TEXT, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 def forward_application(message):
