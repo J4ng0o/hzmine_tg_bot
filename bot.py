@@ -55,16 +55,32 @@ def load_wiki():
 
 def get_main_keyboard():
     markup = types.InlineKeyboardMarkup(row_width=1)
-    markup.add(types.InlineKeyboardButton("💎 HZMINE+", callback_data="donate", style="primary"))
-    markup.add(types.InlineKeyboardButton("🚀 С чего начать?", callback_data="start_guide", style="primary"))
-    markup.add(types.InlineKeyboardButton("📚 Вики", callback_data="open_wiki", style="primary"))
-    markup.add(types.InlineKeyboardButton("📨 Подать заявку", callback_data="apply", style="primary"))
+    markup.add(types.InlineKeyboardButton("HZMINE+", callback_data="donate"))
+    markup.add(types.InlineKeyboardButton("С чего начать?", callback_data="start_guide"))
+    markup.add(types.InlineKeyboardButton("Вики", callback_data="open_wiki"))
+    markup.add(types.InlineKeyboardButton("Подать заявку", callback_data="apply"))
     return markup
 
 # --- ОБРАБОТЧИКИ ---
 @bot.message_handler(commands=['start'])
 def start_message(message):
-    bot.send_message(message.chat.id, WELCOME_TEXT, reply_markup=get_main_keyboard())
+    # Путь к картинке для приветствия
+    photo_path = os.path.join("images", "welcome.jpg") 
+    
+    # Если хочешь использовать .png, поменяй на "welcome.png" выше ^
+
+    if os.path.exists(photo_path):
+        # Если картинка есть, отправляем её с текстом (подписью)
+        with open(photo_path, 'rb') as photo:
+            bot.send_photo(
+                chat_id=message.chat.id, 
+                photo=photo, 
+                caption=WELCOME_TEXT, 
+                reply_markup=get_main_keyboard()
+            )
+    else:
+        # Если картинки нет, отправляем просто текст
+        bot.send_message(message.chat.id, WELCOME_TEXT, reply_markup=get_main_keyboard())
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
@@ -87,9 +103,9 @@ def callback_handler(call):
         
         markup = types.InlineKeyboardMarkup(row_width=1)
         for i, pack_name in enumerate(wiki_data.keys()):
-            markup.add(types.InlineKeyboardButton(pack_name, callback_data=f"wpk_{i}", style="primary"))
+            markup.add(types.InlineKeyboardButton(pack_name, callback_data=f"wpk_{i}"))
         
-        markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back", style="primary"))
+        markup.add(types.InlineKeyboardButton("⬅️ Назад в меню", callback_data="wiki_back"))
         bot.edit_message_text("📚 **Выбери датапак/мод:**", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
     elif call.data.startswith("wpk_"):
@@ -102,9 +118,9 @@ def callback_handler(call):
             markup = types.InlineKeyboardMarkup(row_width=1)
             
             for j, item_name in enumerate(wiki_data[pack_name].keys()):
-                markup.add(types.InlineKeyboardButton(item_name, callback_data=f"wpi_{pack_idx}_{j}", style="primary"))
+                markup.add(types.InlineKeyboardButton(item_name, callback_data=f"wpi_{pack_idx}_{j}"))
             
-            markup.add(types.InlineKeyboardButton("⬅️ К разделам", callback_data="open_wiki", style="primary"))
+            markup.add(types.InlineKeyboardButton("⬅️ К разделам", callback_data="open_wiki"))
             bot.answer_callback_query(call.id)
             bot.edit_message_text(f"📦 **Раздел: {pack_name}**\nВыбери предмет:", chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=markup, parse_mode='Markdown')
 
@@ -129,7 +145,7 @@ def callback_handler(call):
                 text = f"📦 **{pack_name}** | 🛠 **{item_name}**\n\n📝 **Описание:**\n{desc}\n\n⚒ **Как получить/крафт:**\n{craft}"
                 
                 markup = types.InlineKeyboardMarkup(row_width=1)
-                markup.add(types.InlineKeyboardButton("⬅️ Назад к предметам", callback_data=f"wpk_{pack_idx}", style="primary"))
+                markup.add(types.InlineKeyboardButton("⬅️ Назад к предметам", callback_data=f"wpk_{pack_idx}"))
                 bot.answer_callback_query(call.id)
                 
                 photo_path = os.path.join("images", image_name)
@@ -145,6 +161,9 @@ def callback_handler(call):
 
     elif call.data == "wiki_back":
         bot.answer_callback_query(call.id)
+        # Тут мы возвращаемся в главное меню. Так как мы пришли из edit_message_text, 
+        # картинку вернуть не получится (Telegram не позволяет менять текст на фото), 
+        # поэтому вернется просто текст.
         bot.edit_message_text(WELCOME_TEXT, chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=get_main_keyboard(), parse_mode='Markdown')
 
 def forward_application(message):
