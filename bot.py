@@ -3,8 +3,13 @@ import telebot
 from telebot import types
 from dotenv import load_dotenv
 
-BOT_TOKEN = "7412378342:AAHRXPec0CnkgdaAepRCUsmGOloBYsRZ51k"
-ADMIN_ID = 5393418168
+# Загружаем переменные из файла .env (если он есть на компьютере/сервере)
+load_dotenv()
+
+# --- НАСТРОЙКИ ---
+# Берем токен из переменных окружения
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0")) # 0 - заглушка, если переменная не задана
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
