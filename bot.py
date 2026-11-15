@@ -128,16 +128,17 @@ def start_cmd(message):
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_application, content_types=['text'])
 def process_application(message):
-    waiting_for_application.discard(message.chat.id)
-
+    # ВАЖНО: Убрали discard отсюда, чтобы не сбрасывать статус до успешной отправки
+    
     user = message.from_user
     username = f"@{user.username}" if user.username else "нет username"
 
+    # Используем HTML для безопасной отправки (даже если есть символы * или _)
     admin_text = (
-        f"📩 Новая заявка!\n\n"
+        f"📩 <b>Новая заявка!</b>\n\n"
         f"От: {user.first_name} ({username})\n"
-        f"ID: {user.id}\n\n"
-        f"Текст заявки:\n{message.text}"
+        f"ID: <code>{user.id}</code>\n\n"
+        f"<b>Текст заявки:</b>\n{message.text}"
     )
 
     if ADMIN_ID == 0:
@@ -146,8 +147,10 @@ def process_application(message):
         return
 
     try:
-        bot.send_message(ADMIN_ID, admin_text)
+        bot.send_message(ADMIN_ID, admin_text, parse_mode='HTML')
         bot.send_message(message.chat.id, "✅ Заявка отправлена администрации.")
+        # Сбрасываем ожидание ТОЛЬКО после успешной доставки
+        waiting_for_application.discard(message.chat.id)
     except Exception as e:
         print(f"!!! ОШИБКА ОТПРАВКИ ЗАЯВКИ: {repr(e)}")
         bot.send_message(message.chat.id, "Ошибка отправки. Попробуй позже.")
