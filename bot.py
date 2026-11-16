@@ -128,17 +128,15 @@ def start_cmd(message):
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_application, content_types=['text'])
 def process_application(message):
-    # ВАЖНО: Убрали discard отсюда, чтобы не сбрасывать статус до успешной отправки
-    
     user = message.from_user
     username = f"@{user.username}" if user.username else "нет username"
 
-    # Используем HTML для безопасной отправки (даже если есть символы * или _)
+    # ВАЖНО: Мы отказываемся от parse_mode, чтобы символы _, *, < и т.д. не ломали отправку
     admin_text = (
-        f"📩 <b>Новая заявка!</b>\n\n"
+        f"📩 НОВАЯ ЗАЯВКА!\n\n"
         f"От: {user.first_name} ({username})\n"
-        f"ID: <code>{user.id}</code>\n\n"
-        f"<b>Текст заявки:</b>\n{message.text}"
+        f"ID: {user.id}\n\n"
+        f"Текст заявки:\n{message.text}"
     )
 
     if ADMIN_ID == 0:
@@ -147,13 +145,31 @@ def process_application(message):
         return
 
     try:
-        bot.send_message(ADMIN_ID, admin_text, parse_mode='HTML')
+        # 1. Пытаемся отправить чистым текстом (без HTML/Markdown)
+        bot.send_message(ADMIN_ID, admin_text)
         bot.send_message(message.chat.id, "✅ Заявка отправлена администрации.")
-        # Сбрасываем ожидание ТОЛЬКО после успешной доставки
         waiting_for_application.discard(message.chat.id)
+        
     except Exception as e:
-        print(f"!!! ОШИБКА ОТПРАВКИ ЗАЯВКИ: {repr(e)}")
-        bot.send_message(message.chat.id, "Ошибка отправки. Попробуй позже.")
+        print(f"!!! ОШИБКА ОТПРАВКИ ТЕКСТОМ: {repr(e)}")
+        # 2. Если Telegram всё равно ругается (например, на невидимые символы) —
+        # отправляем заявку ТЕКСТОВЫМ ФАЙЛОМ. Этот способ обходит 100% ошибок парсинга.
+        try:
+            with open("application.txt", "w", encoding="utf-8") as f:
+                f.write(admin_text)
+            with open("application.txt", "rb") as f:
+                bot.send_document(ADMIN_ID, f, caption="📩 Новая заявка (отправлено файлом из-за спецсимволов)")
+            
+            bot.send_message(message.chat.id, "✅ Заявка отправлена администрации.")
+            waiting_for_application.discard(message.chat.id)
+            
+            # Удаляем временный файл
+            if os.path.exists("application.txt"):
+                os.remove("application.txt")
+                
+        except Exception as e2:
+            print(f"!!! КРИТИЧЕСКАЯ ОШИБКА ОТПРАВКИ ФАЙЛОМ: {repr(e2)}")
+            bot.send_message(message.chat.id, "⚠️ Ошибка отправки. Пожалуйста, попробуй отправить заявку еще раз.")
 
 
 @bot.message_handler(
