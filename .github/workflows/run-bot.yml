@@ -3,21 +3,32 @@ name: Start HZMINE Bot
 on:
   workflow_dispatch: {}
   schedule:
-    - cron: '0 */6 * * *'
+    # Сдвинуто с 00 минут, чтобы не попадать в пиковую нагрузку GitHub Actions
+    - cron: '17 */6 * * *'
+
+# Не даём двум запускам работать одновременно
+concurrency:
+  group: hzmine-bot
+  cancel-in-progress: false
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    # 5.5 часа, чтобы был зазор до следующего запуска (6 ч)
+    timeout-minutes: 330
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # нужен для keep-alive коммита
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
 
       - name: Install dependencies
         run: pip install -r requirements.txt
@@ -26,4 +37,32 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
-        run: python bot.py
+        run: |
+          echo "Bot started at $(date -u)"
+          python bot.py
+
+  # Отдельная джоба: раз в месяц делает пустой коммит,
+  # чтобы GitHub не отключил schedule из-за 60 дней неактивности
+  keep-alive:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Keep-alive commit (раз в ~30 дней)
+        run: |
+          LAST=$(git log -1 --format=%ct)
+          NOW=$(date +%s)
+          DIFF=$(( (NOW - LAST) / 86400 ))
+          if [ "$DIFF" -ge 30 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: keep-alive $(date -u +%Y-%m-%d)"
+            git push
+            echo "Keep-alive commit created (last activity ${DIFF} days ago)"
+          else
+            echo "Skip keep-alive: last activity ${DIFF} days ago"
+          fi
