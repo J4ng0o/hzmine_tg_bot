@@ -1,3 +1,5 @@
+bot.remove_webhook()
+
 import os
 import json
 import telebot
