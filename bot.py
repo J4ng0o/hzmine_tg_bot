@@ -18,9 +18,6 @@ except (TypeError, ValueError):
 print(f"DEBUG: BOT_TOKEN set={bool(BOT_TOKEN)}, ADMIN_ID={ADMIN_ID}")
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-bot.remove_webhook()
-
 # Множество chat_id, которые сейчас в процессе подачи заявки
 waiting_for_application = set()
 
