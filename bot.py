@@ -5,20 +5,30 @@ import telebot
 from telebot import types, apihelper
 from dotenv import load_dotenv
 
+# Загружаем переменные окружения (для локального тестирования)
 load_dotenv()
 
+# --- 1. ПОЛУЧАЕМ ДАННЫЕ ИЗ СЕКРЕТОВ ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_ID_RAW = os.getenv("ADMIN_ID", "0")
 
-# --- Опциональный прокси для Telegram API ---
-# Если задать TELEGRAM_PROXY (например, https://your-worker.workers.dev),
-# все запросы пойдут через него. Иначе — напрямую.
+# --- 2. НАСТРОЙКА ПРОКСИ (ВАЖНО!) ---
+# Мы берем URL воркера из секрета TELEGRAM_PROXY
 PROXY_URL = os.getenv("TELEGRAM_PROXY")
+
 if PROXY_URL:
+    # Убираем возможный слэш в конце, если он случайно там есть
+    PROXY_URL = PROXY_URL.rstrip('/')
+    
+    # Перенаправляем все запросы к API через ваш Cloudflare Worker
     apihelper.API_URL = f"{PROXY_URL}/bot{{0}}/{{1}}"
     apihelper.FILE_URL = f"{PROXY_URL}/file/bot{{0}}/{{1}}"
-    print(f"DEBUG: using proxy {PROXY_URL}")
+    
+    print(f"✅ DEBUG: Бот будет использовать прокси: {PROXY_URL}")
+else:
+    print("⚠️ ВНИМАНИЕ: TELEGRAM_PROXY не задан! Бот будет пытаться подключиться напрямую (возможны таймауты в GitHub Actions).")
 
+# --- 3. ПРОВЕРКА ADMIN_ID ---
 try:
     ADMIN_ID = int(ADMIN_ID_RAW)
 except (TypeError, ValueError):
@@ -28,8 +38,9 @@ except (TypeError, ValueError):
 print(f"DEBUG: BOT_TOKEN set={bool(BOT_TOKEN)}, ADMIN_ID={ADMIN_ID}")
 
 if not BOT_TOKEN:
-    raise SystemExit("!!! BOT_TOKEN не задан. Проверь секреты репозитория.")
+    raise SystemExit("!!! КРИТИЧЕСКАЯ ОШИБКА: BOT_TOKEN не задан. Проверь секреты репозитория.")
 
+# --- 4. ИНИЦИАЛИЗАЦИЯ БОТА ---
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Убираем webhook, чтобы polling мог получать обновления
@@ -37,11 +48,13 @@ try:
     bot.remove_webhook()
     print("DEBUG: webhook removed")
 except Exception as e:
-    print(f"DEBUG: remove_webhook failed: {repr(e)}")
+    print(f"DEBUG: remove_webhook failed (это нормально): {repr(e)}")
 
+# Хранилища состояний
 waiting_for_application = set()
 last_channel_msg = {}
 
+# --- 5. ТЕКСТЫ ---
 WELCOME_TEXT = (
     "Привет! Я, бот сервера HZMINE. Здесь ты можешь купить HZMINE+, "
     "ознакомиться с самой важной информацией для игры на сервере, "
@@ -77,7 +90,7 @@ APPLICATION_EXAMPLE = (
     "Или нажми «Отмена», чтобы вернуться в меню."
 )
 
-
+# --- 6. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 def get_wiki():
     try:
         with open('wiki.json', 'r', encoding='utf-8') as f:
@@ -86,10 +99,8 @@ def get_wiki():
         print(f"!!! ОШИБКА ЧТЕНИЯ WIKI.JSON: {repr(e)}")
         return {}
 
-
 def is_item(value):
     return isinstance(value, dict) and ("desc" in value or "craft" in value)
-
 
 def main_menu():
     markup = types.InlineKeyboardMarkup(row_width=1)
@@ -101,7 +112,6 @@ def main_menu():
     )
     return markup
 
-
 def safe_delete(chat_id, message_id):
     if not message_id:
         return
@@ -110,10 +120,8 @@ def safe_delete(chat_id, message_id):
     except Exception:
         pass
 
-
 def send_main_menu(chat_id, delete_msg_id=None):
     photo = os.path.join("images", "hello.png")
-
     if os.path.exists(photo):
         with open(photo, 'rb') as f:
             bot.send_photo(chat_id, f, caption=WELCOME_TEXT, reply_markup=main_menu())
@@ -126,20 +134,18 @@ def send_main_menu(chat_id, delete_msg_id=None):
     if delete_msg_id:
         safe_delete(chat_id, delete_msg_id)
 
-
+# --- 7. ХЕНДЛЕРЫ ---
 @bot.message_handler(commands=['start'])
 def start_cmd(message):
-    print(f"!!! START from {message.chat.id}")
+    print(f"!!! START от {message.chat.id}")
     waiting_for_application.discard(message.chat.id)
     safe_delete(message.chat.id, last_channel_msg.get(message.chat.id))
     send_main_menu(message.chat.id)
-
 
 @bot.message_handler(func=lambda m: m.chat.id in waiting_for_application, content_types=['text'])
 def process_application(message):
     user = message.from_user
     username = f"@{user.username}" if user.username else "нет username"
-
     admin_text = (
         f"📩 НОВАЯ ЗАЯВКА!\n\n"
         f"От: {user.first_name} ({username})\n"
@@ -171,14 +177,12 @@ def process_application(message):
             print(f"!!! КРИТИЧЕСКАЯ ОШИБКА ОТПРАВКИ ФАЙЛОМ: {repr(e2)}")
             bot.send_message(message.chat.id, "⚠️ Ошибка отправки. Попробуй ещё раз.")
 
-
 @bot.message_handler(
     func=lambda m: m.chat.id in waiting_for_application,
     content_types=['photo', 'video', 'sticker', 'voice', 'document', 'audio']
 )
 def process_application_wrong_type(message):
     bot.send_message(message.chat.id, "Пожалуйста, отправь заявку текстом. Или нажми «Отмена», чтобы вернуться в меню.")
-
 
 @bot.callback_query_handler(func=lambda call: True)
 def callbacks(call):
@@ -354,9 +358,8 @@ def callbacks(call):
         except Exception:
             pass
 
-
+# --- 8. ЗАПУСК С ЦИКЛОМ ПЕРЕПОДКЛЮЧЕНИЯ ---
 def run_bot():
-    """Свой цикл переподключения: не даём боту навсегда зависнуть на таймауте."""
     while True:
         try:
             print("DEBUG: starting polling...")
@@ -370,7 +373,6 @@ def run_bot():
             print(f"!!! POLLING CRASHED: {repr(e)}")
             print("DEBUG: restarting polling in 10 seconds...")
             time.sleep(10)
-
 
 if __name__ == '__main__':
     run_bot()
