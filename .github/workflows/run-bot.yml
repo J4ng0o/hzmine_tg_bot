@@ -3,10 +3,10 @@ name: Start HZMINE Bot
 on:
   workflow_dispatch: {}
   schedule:
-    # Сдвинуто с 00 минут, чтобы не попадать в пиковую нагрузку GitHub Actions
-    - cron: '17 */6 * * *'
+    # Запуск каждые 4 часа (в 17 минут), чтобы избежать пиковой нагрузки
+    - cron: '17 */4 * * *'
 
-# Не даём двум запускам работать одновременно
+# Запрещаем одновременный запуск двух копий бота
 concurrency:
   group: hzmine-bot
   cancel-in-progress: false
@@ -14,14 +14,14 @@ concurrency:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-    # 5.5 часа, чтобы был зазор до следующего запуска (6 ч)
-    timeout-minutes: 330
+    # 3 часа 50 минут работы.
+    # Зазор 10 минут до следующего запуска нужен, чтобы Telegram успел "отпустить" старый процесс
+    timeout-minutes: 230
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # нужен для keep-alive коммита
           persist-credentials: true
 
       - name: Set up Python
@@ -37,6 +37,8 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           ADMIN_ID: ${{ secrets.ADMIN_ID }}
+          # ВАЖНО: Передаем URL воркера боту
+          TELEGRAM_PROXY: ${{ secrets.TELEGRAM_PROXY }}
         run: |
           echo "Bot started at $(date -u)"
           python bot.py
